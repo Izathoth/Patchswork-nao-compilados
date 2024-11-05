@@ -6,7 +6,7 @@ local FOV_INCREMENT = 10 -- Incremento para ajuste de FOV
 local AIM_DISTANCE = 500 -- Distância máxima para auto-aim
 local HEADSHOT_CHANCE = 0.9 -- 90% de chance de acerto na cabeça
 
--- Importação de serviços do Roblox
+-- Importação de serviços do Roblox/Módulo utilizado no free fire 
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
