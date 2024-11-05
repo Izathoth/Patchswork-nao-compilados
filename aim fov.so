@@ -1,0 +1,112 @@
+-- Configurações iniciais
+local FOV_RADIUS = 100  -- Raio inicial do FOV
+local MIN_FOV = 50      -- Limite mínimo do FOV
+local MAX_FOV = 300     -- Limite máximo do FOV
+local FOV_INCREMENT = 10 -- Incremento para ajuste de FOV
+local AIM_DISTANCE = 500 -- Distância máxima para auto-aim
+local HEADSHOT_CHANCE = 0.9 -- 90% de chance de acerto na cabeça
+
+-- Importação de serviços do Roblox
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local Camera = game.Workspace.CurrentCamera
+
+-- Configuração do círculo de FOV
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = true
+FOVCircle.Thickness = 2
+FOVCircle.Color = Color3.fromRGB(128, 0, 128) -- Cor roxa
+FOVCircle.Filled = false
+FOVCircle.Radius = FOV_RADIUS
+FOVCircle.Position = Camera.ViewportSize / 2
+
+-- Atualiza a posição e o raio do círculo de FOV
+local function updateFOVCircle()
+    FOVCircle.Position = Camera.ViewportSize / 2
+    FOVCircle.Radius = FOV_RADIUS
+end
+
+-- Alterna a visibilidade do círculo de FOV
+local function toggleFOVCircleVisibility()
+    FOVCircle.Visible = not FOVCircle.Visible
+end
+
+-- Ajusta o tamanho do FOV com limites
+local function adjustFOV(delta)
+    FOV_RADIUS = math.clamp(FOV_RADIUS + delta, MIN_FOV, MAX_FOV)
+    updateFOVCircle()
+end
+
+-- Detecta quando uma tecla é pressionada para ações específicas
+local function onKeyInput(input)
+    if input.KeyCode == Enum.KeyCode.Delete then
+        -- Remove o círculo e desconecta a atualização
+        RunService:UnbindFromRenderStep("FOVUpdate")
+        FOVCircle:Remove()
+    elseif input.KeyCode == Enum.KeyCode.F then
+        -- Alterna a visibilidade do círculo de FOV
+        toggleFOVCircleVisibility()
+    elseif input.KeyCode == Enum.KeyCode.Equals then
+        -- Aumenta o raio do FOV
+        adjustFOV(FOV_INCREMENT)
+    elseif input.KeyCode == Enum.KeyCode.Minus then
+        -- Diminui o raio do FOV
+        adjustFOV(-FOV_INCREMENT)
+    end
+end
+
+UserInputService.InputBegan:Connect(onKeyInput)
+
+-- Define a câmera para olhar na direção do alvo
+local function lookAt(target)
+    local lookVector = (target - Camera.CFrame.Position).unit
+    Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + lookVector)
+end
+
+-- Função para encontrar o jogador mais próximo dentro do FOV e a uma distância limite
+local function getClosestPlayerInFOV(targetPart)
+    local nearestPlayer = nil
+    local shortestDistance = math.huge
+    local screenCenter = Camera.ViewportSize / 2
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer then
+            local character = player.Character
+            local part = character and character:FindFirstChild(targetPart)
+            
+            if part then
+                local partPositionOnScreen, isVisible = Camera:WorldToViewportPoint(part.Position)
+                local distanceFromCenter = (Vector2.new(partPositionOnScreen.x, partPositionOnScreen.y) - screenCenter).Magnitude
+                local distanceToPlayer = (Camera.CFrame.Position - part.Position).Magnitude
+                
+                if distanceFromCenter < shortestDistance and isVisible and distanceFromCenter < FOV_RADIUS and distanceToPlayer < AIM_DISTANCE then
+                    shortestDistance = distanceFromCenter
+                    nearestPlayer = player
+                end
+            end
+        end
+    end
+
+    return nearestPlayer
+end
+
+-- Atualização contínua do círculo FOV e da câmera para mirar no alvo mais próximo
+RunService.RenderStepped:Connect(function()
+    updateFOVCircle()
+    
+    local closestPlayer = getClosestPlayerInFOV("Head")
+    if closestPlayer and closestPlayer.Character:FindFirstChild("Head") then
+        local headPosition = closestPlayer.Character.Head.Position
+        
+        -- Checa a chance de acertar o tiro na cabeça
+        if math.random() < HEADSHOT_CHANCE then
+            -- Acertou
+            lookAt(headPosition)
+        else
+            -- Errou: desvia a mira levemente (por exemplo, um pouco para o lado ou para baixo)
+            local offset = Vector3.new(math.random(-5, 5), math.random(-5, 5), 0) -- Pequeno desvio
+            lookAt(headPosition + offset)
+        end
+    end
+end)
